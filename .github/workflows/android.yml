@@ -1,0 +1,71 @@
+name: Build StyleYar APK 1.5.0
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Extract StyleYar project
+        run: |
+          rm -rf extracted
+          mkdir extracted
+
+          unzip -o StyleYar_Android_1.5.0.zip -d extracted
+
+          PROJECT_DIR=$(find extracted -name settings.gradle -print -quit | xargs dirname)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: settings.gradle not found"
+            find extracted -maxdepth 3 -type f | head -100
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project directory: $PROJECT_DIR"
+
+      - name: Build APK
+        run: |
+          cd "$PROJECT_DIR"
+          gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK
+        run: |
+          APK="$PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk"
+
+          echo "APK: $APK"
+          ls -lh "$APK"
+
+          file "$APK"
+
+          unzip -t "$APK" >/dev/null
+
+          test -s "$APK"
+
+          echo "APK verification successful"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: StyleYar-APK-1.5.0
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
